@@ -1,0 +1,66 @@
+# ─── Python / Backend ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+*.egg-info
+.installed.cfg
+lib/
+lib64/
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+.env.bak
+*.venv
+
+# ─── ENVIRONMENT / SECRETS (NEVER COMMIT REAL KEYS) ─────────────────────────
+.env
+.env.local
+.env.production
+.env.*.local
+# ^ Keep .env.example — that's safe to commit
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── IDE / Editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Node / Frontend ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.sqlite
+*.db
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+.coverage
+htmlcov/
