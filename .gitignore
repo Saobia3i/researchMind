@@ -14,8 +14,8 @@ sdist/
 wheels/
 *.egg-info
 .installed.cfg
-lib/
-lib64/
+/lib/
+/lib64/
 MANIFEST
 
 # Virtual environments
