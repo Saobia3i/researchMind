@@ -121,7 +121,7 @@ Return:
 - Confidence from 0 to 1
 """
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    providers = ["gemini", "groq"]
+    providers = ["gemini", "openrouter", "groq"]
     opinions = []
     for provider in providers:
         response = call_model(
@@ -233,6 +233,15 @@ Return ONLY valid JSON in this exact shape:
             temperature=0.0,
             budget=budget,
             stage="claim_verifier_fallback",
+        )
+    if response.skipped:
+        response = call_model(
+            "openrouter",
+            [{"role": "system", "content": "You are a strict claim verifier."}, {"role": "user", "content": prompt}],
+            max_tokens=900,
+            temperature=0.0,
+            budget=budget,
+            stage="claim_verifier_openrouter_fallback",
         )
 
     parsed = _parse_claim_checks(response.content, claims)
@@ -425,10 +434,19 @@ Write the final answer in Markdown. Include:
             stage="final_synthesis_fallback",
         )
     if response.skipped:
+        response = call_model(
+            "openrouter",
+            [{"role": "system", "content": "You synthesize verified multi-model research."}, {"role": "user", "content": prompt}],
+            max_tokens=1200,
+            temperature=0.2,
+            budget=budget,
+            stage="final_synthesis_openrouter_fallback",
+        )
+    if response.skipped:
         return (
             "## Deep Consensus could not run yet\n\n"
-        "Add at least one Gemini or Groq API key to enable final synthesis. The workflow still prepared "
-        "the evidence graph and cost plan, but no model was available within the configured budget."
+            "Add at least one Gemini, OpenRouter, or Groq API key to enable final synthesis. "
+            "The workflow still prepared the evidence graph and cost plan, but no model was available within the configured budget."
         )
     return response.content
 
@@ -442,6 +460,9 @@ def _derive_sub_questions(query: str, model_opinions: list[dict]) -> list[str]:
     for opinion in model_opinions:
         if opinion.get("provider") == "gemini" and not opinion.get("skipped"):
             base.insert(1, "How does Gemini interpret the retrieved evidence?")
+            break
+        if opinion.get("provider") == "openrouter" and not opinion.get("skipped"):
+            base.insert(1, "How does the OpenRouter-selected model interpret the retrieved evidence?")
             break
     return base[:4]
 

@@ -9,7 +9,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-ProviderName = Literal["groq", "openai", "gemini", "perplexity"]
+ProviderName = Literal["groq", "openai", "gemini", "openrouter", "perplexity"]
 
 
 @dataclass
@@ -56,6 +56,11 @@ MODEL_PRICING: dict[ProviderName, ModelPricing] = {
         output_per_1m=0.0,
         billing_note="Configured as free-tier/quota usage for this project.",
     ),
+    "openrouter": ModelPricing(
+        input_per_1m=settings.openrouter_input_per_1m_usd,
+        output_per_1m=settings.openrouter_output_per_1m_usd,
+        billing_note="OpenRouter pricing depends on the selected model. Configure OPENROUTER_INPUT_PER_1M_USD and OPENROUTER_OUTPUT_PER_1M_USD for paid models.",
+    ),
     "perplexity": ModelPricing(
         input_per_1m=1.00,
         output_per_1m=1.00,
@@ -67,6 +72,7 @@ MODEL_NAMES: dict[ProviderName, str] = {
     "groq": settings.groq_model,
     "openai": settings.openai_model,
     "gemini": settings.gemini_model,
+    "openrouter": settings.openrouter_model,
     "perplexity": settings.perplexity_model,
 }
 
@@ -77,6 +83,7 @@ def provider_available(provider: ProviderName) -> bool:
             "groq": settings.groq_api_key,
             "openai": settings.openai_api_key,
             "gemini": settings.gemini_api_key,
+            "openrouter": settings.openrouter_api_key,
             "perplexity": settings.perplexity_api_key,
         }[provider]
     )
@@ -183,6 +190,8 @@ def call_model(
             response = _call_openai(model, messages, max_tokens, temperature)
         elif provider == "perplexity":
             response = _call_perplexity(model, messages, max_tokens, temperature)
+        elif provider == "openrouter":
+            response = _call_openrouter(model, messages, max_tokens, temperature)
         else:
             response = _call_gemini(model, messages, max_tokens, temperature)
     except Exception as exc:
@@ -272,6 +281,44 @@ def _call_perplexity(
         content,
         usage,
         estimate_cost("perplexity", usage.prompt_tokens, usage.completion_tokens),
+    )
+
+
+def _call_openrouter(
+    model: str,
+    messages: list[dict],
+    max_tokens: int,
+    temperature: float,
+) -> ModelResponse:
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "ResearchMind",
+    }
+    with httpx.Client(timeout=90) as client:
+        raw = client.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers)
+        raw.raise_for_status()
+        data = raw.json()
+
+    content = data["choices"][0]["message"]["content"] or ""
+    raw_usage = data.get("usage", {})
+    usage = ModelUsage(
+        prompt_tokens=raw_usage.get("prompt_tokens", estimate_message_tokens(messages)),
+        completion_tokens=raw_usage.get("completion_tokens", estimate_tokens(content)),
+    )
+    return ModelResponse(
+        "openrouter",
+        data.get("model", model),
+        content,
+        usage,
+        estimate_cost("openrouter", usage.prompt_tokens, usage.completion_tokens),
     )
 
 

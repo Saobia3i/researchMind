@@ -153,7 +153,7 @@ export default function Home() {
               { label: "LangGraph",     color: "#22d3ee" },
               { label: "Pinecone RAG",  color: "#f472b6" },
               { label: "ReAct Agent",   color: "#fbbf24" },
-              { label: "Gemini + Groq",  color: "#4ade80" },
+              { label: "Gemini + OpenRouter + Groq",  color: "#4ade80" },
             ].map((p) => (
               <span key={p.label} style={{
                 padding: "3px 10px", borderRadius: 999,
