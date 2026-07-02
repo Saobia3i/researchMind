@@ -53,10 +53,19 @@ The UI shows the agent trace so the user can inspect each step instead of only s
 A LangGraph workflow that models a simple research team:
 
 ```text
-Planner -> Researcher -> Writer
+Planner -> Researcher -> Evidence Grader -> Writer
 ```
 
-The planner breaks the query into sub-topics, the researcher gathers evidence, and the writer synthesizes a final report.
+The planner breaks the query into sub-topics, the researcher gathers raw web and knowledge-base evidence, the evidence grader filters out off-topic chunks, and the writer synthesizes a final report from only the filtered evidence.
+
+The Team Research path now includes:
+
+- per-sub-topic relevance grading with a fast Groq model
+- concurrent evidence grading to reduce latency
+- source-quality hints that prefer primary or official-looking sources where possible
+- explicit "insufficient relevant evidence" handling when a sub-topic has no usable evidence
+- response-level evidence counts showing how many chunks were retrieved and kept for each sub-topic
+- writer grounding rules that forbid unsupported claims, technologies, recommendations, and conclusion-only additions
 
 ### 4. Deep Consensus
 
@@ -93,6 +102,7 @@ It shows:
 
 - model opinions
 - claim-level verification
+- Team Research evidence relevance counts
 - support labels: strong, partial, weak, unsupported
 - evidence references per claim
 - disagreement status
@@ -337,6 +347,26 @@ Status: needs_review
 
 This is deliberately conservative. The system should not overstate confidence when evidence is weak.
 
+## Team Research Output
+
+The `/api/v1/agent/team_research` endpoint returns:
+
+- plan
+- filtered research notes
+- final Markdown report
+- execution steps
+- evidence audit per sub-topic
+
+Each evidence audit item includes:
+
+- sub-topic
+- number of retrieved chunks
+- number of chunks kept after relevance filtering
+- whether evidence was sufficient
+- evidence status, such as `relevant_evidence_found` or `no_relevant_evidence_found`
+
+This makes it visible when a section had weak retrieval instead of letting the writer fill the gap with unsupported prose.
+
 ## Current Limitations
 
 This is a portfolio-grade research system, not a finished production platform.
@@ -347,6 +377,7 @@ Known limitations:
 - Pinecone setup is optional and must be configured separately
 - web search quality depends on DDGS results
 - claim extraction is currently heuristic
+- Team Research relevance grading is binary and excerpt-level, not full claim verification
 - full evaluation suite is not implemented yet
 - no production authentication or user billing layer
 - no persistent database for audit history
@@ -358,9 +389,9 @@ Known limitations:
 - persistent research runs in PostgreSQL
 - model evaluation harness
 - claim extraction using structured model output
-- source quality scoring
+- richer source quality scoring beyond the current Team Research heuristic
 - source contradiction detection
-- reranking for retrieved evidence
+- deeper reranking for retrieved evidence across all workflows
 - budget presets: Fast, Balanced, Deep
 - semantic prompt compression using a cheap model
 - cached retrieval and cached provider opinions

@@ -22,7 +22,9 @@ This mode uses a reasoning + acting loop where the agent can decide when to call
 
 **3. Team Research**
 
-I used LangGraph to build a planner -> researcher -> writer workflow. The planner decomposes the query, the researcher gathers evidence, and the writer creates a final report.
+I used LangGraph to build a planner -> researcher -> evidence grader -> writer workflow. The planner decomposes the query, the researcher gathers evidence, a relevance gate filters off-topic chunks, and the writer creates a final report from only the filtered evidence.
+
+This was an important reliability improvement: the system now reports how many evidence chunks were retrieved vs. kept for each sub-topic, and if no relevant evidence is found, the report has to say that instead of filling the gap with unsupported prose.
 
 **4. Deep Consensus**
 
@@ -35,6 +37,7 @@ It also shows reliability notes when something is missing or weak. For example, 
 Some of the things I focused on:
 
 - claim-level verification
+- relevance-gated Team Research synthesis
 - model disagreement mapping
 - evidence graph generation
 - ReAct tool usage
@@ -45,6 +48,7 @@ Some of the things I focused on:
 - cost-aware routing and budget control
 - stage-level token budgets
 - evidence deduplication and prompt compaction
+- per-sub-topic evidence audit counts
 - early-stop provider routing when strong agreement is reached
 - token and cost tracking
 - session memory
@@ -76,6 +80,7 @@ A system needs to ask:
 
 - What evidence was used?
 - Which claims are actually supported?
+- Was the retrieved evidence relevant to the specific sub-topic?
 - Where is the answer weak?
 - Did models disagree?
 - Which providers were skipped?
@@ -83,7 +88,7 @@ A system needs to ask:
 - How many tokens were saved before calling the models?
 - Can the user inspect the reasoning path?
 
-ResearchMind is still evolving. Next, I want to improve source quality scoring, contradiction detection, persistent audit history, Redis-backed memory, and evaluation workflows.
+ResearchMind is still evolving. Next, I want to improve contradiction detection, richer source quality scoring, persistent audit history, Redis-backed memory, and evaluation workflows.
 
 GitHub: [add your GitHub repository link here]
 
@@ -100,8 +105,9 @@ The goal was to make AI research more transparent, verifiable, and cost-aware.
 ResearchMind includes:
 
 - ReAct tool-calling agent
-- LangGraph planner -> researcher -> writer workflow
+- LangGraph planner -> researcher -> evidence grader -> writer workflow
 - Deep Consensus mode with model opinions, claim verification, disagreement mapping, and evidence graph
+- per-sub-topic evidence relevance counts for Team Research
 - Gemini + OpenRouter + Groq default provider flow
 - optional OpenAI and Perplexity adapters
 - Pinecone RAG
