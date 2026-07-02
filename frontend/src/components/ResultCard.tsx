@@ -129,6 +129,26 @@ function TeamCard({ d }: { d: TeamResearchResponse }) {
           {renderMd(d.plan)}
         </div>
       </details>
+      {d.evidence_audit.length > 0 && (
+        <details className="glass" style={{ overflow:"hidden", borderRadius:12 }} open>
+          <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+            Evidence Relevance
+          </summary>
+          <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)", display:"flex", flexDirection:"column", gap:8 }}>
+            {d.evidence_audit.map((item, i) => (
+              <div key={i} style={{ padding:"9px 0", borderBottom:"1px solid rgba(99,102,241,0.1)" }}>
+                <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", marginBottom:5 }}>
+                  <span className={item.evidence_sufficient ? "badge badge-green" : "badge badge-amber"}>
+                    {item.kept_chunks} / {item.retrieved_chunks} relevant
+                  </span>
+                  <span className="badge badge-purple" style={{ textTransform:"none" }}>{item.evidence_status}</span>
+                </div>
+                <p style={{ fontSize:12, color:"var(--text-secondary)", lineHeight:1.6 }}>{item.sub_topic}</p>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       <div className="gradient-border">
         <div className="glass" style={{ borderRadius:16, padding:"20px 22px" }}>
           <div style={{ display:"flex", gap:6, marginBottom:14 }}>

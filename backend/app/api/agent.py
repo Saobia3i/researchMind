@@ -105,6 +105,14 @@ class TeamResearchRequest(BaseModel):
     )
 
 
+class TeamEvidenceAudit(BaseModel):
+    sub_topic: str
+    retrieved_chunks: int
+    kept_chunks: int
+    evidence_sufficient: bool
+    evidence_status: str
+
+
 class TeamResearchResponse(BaseModel):
     query: str
     session_id: str | None
@@ -112,6 +120,12 @@ class TeamResearchResponse(BaseModel):
     research_notes: str
     final_report: str
     steps: list[str]
+    evidence_audit: list[TeamEvidenceAudit] = Field(
+        default_factory=list,
+        description=(
+            "Per-sub-topic evidence counts and sufficiency status after relevance filtering."
+        ),
+    )
 
 
 class ConsensusResearchRequest(BaseModel):
@@ -165,6 +179,9 @@ def team_research(request: TeamResearchRequest):
             "research_notes": "",
             "final_report": "",
             "steps": [],
+            "evidence_chunks": [],
+            "filtered_evidence": [],
+            "evidence_audit": [],
         }
         result = compiled_graph.invoke(initial_state)
     except Exception as e:
@@ -191,6 +208,7 @@ def team_research(request: TeamResearchRequest):
         research_notes=result["research_notes"],
         final_report=result["final_report"],
         steps=result["steps"],
+        evidence_audit=result.get("evidence_audit", []),
     )
 
 

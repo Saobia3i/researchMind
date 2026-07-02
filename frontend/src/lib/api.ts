@@ -55,6 +55,13 @@ export interface TeamResearchResponse {
   research_notes: string;
   final_report: string;
   steps: string[];
+  evidence_audit: Array<{
+    sub_topic: string;
+    retrieved_chunks: number;
+    kept_chunks: number;
+    evidence_sufficient: boolean;
+    evidence_status: string;
+  }>;
 }
 
 export interface ConsensusResearchResponse {
