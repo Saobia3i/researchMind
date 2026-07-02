@@ -147,6 +147,7 @@ function ConsensusCard({ d }: { d: ConsensusResearchResponse }) {
   const spentPct = d.cost_report.limit_usd > 0
     ? Math.min(100, (d.cost_report.spent_usd / d.cost_report.limit_usd) * 100)
     : 0;
+  const totalOptimization = d.optimization_report.find((r) => r.stage === "total_prompt_optimization");
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }} className="fade-in">
@@ -157,6 +158,7 @@ function ConsensusCard({ d }: { d: ConsensusResearchResponse }) {
               <span className="badge badge-green">Deep Consensus</span>
               <span className="badge badge-cyan">{d.model_opinions.filter((m) => !m.skipped).length} Models Ran</span>
               <span className="badge badge-amber">${d.cost_report.spent_usd.toFixed(4)} Spent</span>
+              {totalOptimization && <span className="badge badge-purple">{totalOptimization.saved_tokens.toLocaleString()} Tokens Saved</span>}
             </div>
             <span style={{ fontSize:11, color:"var(--text-muted)" }}>Budget ${d.cost_report.limit_usd.toFixed(2)}</span>
           </div>
@@ -222,6 +224,34 @@ function ConsensusCard({ d }: { d: ConsensusResearchResponse }) {
                   <span key={provider} className="badge badge-cyan" style={{ textTransform:"none" }}>{provider}: {stance}</span>
                 ))}
               </div>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <details className="glass" style={{ overflow:"hidden", borderRadius:12 }}>
+        <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+          Token Optimization
+        </summary>
+        <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)", display:"flex", flexDirection:"column", gap:10 }}>
+          {d.optimization_report.map((row, i) => (
+            <div key={i} style={{ padding:"10px 0", borderBottom:"1px solid rgba(99,102,241,0.1)" }}>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+                <span className="badge badge-purple">{row.stage}</span>
+                <span className="badge badge-green">saved {row.saved_tokens.toLocaleString()}</span>
+                <span className="badge badge-cyan">{row.final_tokens.toLocaleString()} / {row.budget_tokens.toLocaleString()} tokens</span>
+              </div>
+              <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6 }}>
+                Original {row.original_tokens.toLocaleString()} tokens {"->"} final {row.final_tokens.toLocaleString()} tokens.
+                Kept {row.lines_kept} lines, dropped {row.lines_dropped}.
+              </p>
+              {row.notes.length > 0 && (
+                <div style={{ display:"flex", flexDirection:"column", gap:4, marginTop:6 }}>
+                  {row.notes.map((note, noteIndex) => (
+                    <p key={noteIndex} style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.5 }}>{note}</p>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

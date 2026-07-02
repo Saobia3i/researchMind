@@ -65,13 +65,15 @@ The newest and most important mode.
 Deep Consensus is a cost-aware research workflow that:
 
 1. retrieves web and knowledge-base evidence
-2. asks available model providers for independent opinions
-3. extracts important claims
-4. verifies claims against retrieved evidence
-5. builds a model disagreement map
-6. creates an evidence graph
-7. synthesizes a final answer
-8. reports skipped providers, weak retrieval, and budget usage
+2. compacts evidence into stage-specific token budgets
+3. asks available model providers for independent opinions
+4. compresses model opinions before verification and synthesis
+5. extracts important claims
+6. verifies claims against retrieved evidence
+7. builds a model disagreement map
+8. creates an evidence graph
+9. synthesizes a final answer
+10. reports skipped providers, weak retrieval, budget usage, and token savings
 
 Default provider strategy:
 
@@ -97,6 +99,9 @@ It shows:
 - reliability notes
 - skipped provider reasons
 - token and cost tracking
+- stage-level prompt budgets
+- evidence deduplication and prompt compaction
+- early-stop provider routing when strong agreement is reached
 - session-level memory
 - retrieval limitations
 
@@ -316,6 +321,7 @@ The `/api/v1/agent/consensus_research` endpoint returns:
 - disagreement map
 - evidence graph
 - cost report
+- optimization report
 - skipped providers
 - reliability notes
 
@@ -356,6 +362,8 @@ Known limitations:
 - source contradiction detection
 - reranking for retrieved evidence
 - budget presets: Fast, Balanced, Deep
+- semantic prompt compression using a cheap model
+- cached retrieval and cached provider opinions
 - report export to Markdown/PDF
 - deployment with Docker
 
@@ -368,6 +376,7 @@ This project demonstrates practical AI engineering beyond calling a model API:
 - implementing RAG endpoints
 - exposing agent traces
 - adding cost-aware execution controls
+- implementing stage-level token budgets and prompt compaction
 - building claim-level verification
 - handling missing provider keys gracefully
 - surfacing reliability limitations to the user

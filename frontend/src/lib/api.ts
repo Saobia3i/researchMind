@@ -101,6 +101,16 @@ export interface ConsensusResearchResponse {
     events: Array<Record<string, unknown>>;
   };
   reliability_notes: string[];
+  optimization_report: Array<{
+    stage: string;
+    original_tokens: number;
+    final_tokens: number;
+    budget_tokens: number;
+    saved_tokens: number;
+    lines_kept: number;
+    lines_dropped: number;
+    notes: string[];
+  }>;
   skipped_providers: Array<{
     provider: string;
     model: string;

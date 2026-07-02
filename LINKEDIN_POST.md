@@ -43,6 +43,9 @@ Some of the things I focused on:
 - DuckDuckGo/DDGS web retrieval
 - provider abstraction for Gemini, OpenRouter, Groq, OpenAI, and Perplexity
 - cost-aware routing and budget control
+- stage-level token budgets
+- evidence deduplication and prompt compaction
+- early-stop provider routing when strong agreement is reached
 - token and cost tracking
 - session memory
 - graceful handling of missing API keys
@@ -77,6 +80,7 @@ A system needs to ask:
 - Did models disagree?
 - Which providers were skipped?
 - How much did the run cost?
+- How many tokens were saved before calling the models?
 - Can the user inspect the reasoning path?
 
 ResearchMind is still evolving. Next, I want to improve source quality scoring, contradiction detection, persistent audit history, Redis-backed memory, and evaluation workflows.
@@ -102,6 +106,7 @@ ResearchMind includes:
 - optional OpenAI and Perplexity adapters
 - Pinecone RAG
 - token and cost tracking
+- token optimization reports
 - session memory
 - skipped-provider and reliability reporting
 

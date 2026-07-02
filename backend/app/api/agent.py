@@ -143,6 +143,7 @@ class ConsensusResearchResponse(BaseModel):
     cost_report: dict
     skipped_providers: list[dict]
     reliability_notes: list[str]
+    optimization_report: list[dict]
 
 
 @router.post("/agent/team_research", response_model=TeamResearchResponse)
@@ -234,4 +235,5 @@ def consensus_research(request: ConsensusResearchRequest):
         cost_report=result["cost_report"],
         skipped_providers=result["skipped_providers"],
         reliability_notes=result["reliability_notes"],
+        optimization_report=result["optimization_report"],
     )

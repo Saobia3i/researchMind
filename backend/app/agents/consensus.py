@@ -4,6 +4,11 @@ from typing import TypedDict
 
 from app.core.config import settings
 from app.core.model_providers import CostBudget, call_model
+from app.core.prompt_optimizer import (
+    compact_evidence,
+    compact_model_opinions,
+    estimate_tokens,
+)
 from app.core.token_tracker import token_tracker
 from app.tools.kb_search import search_knowledge_base
 from app.tools.web_search import search_web
@@ -20,6 +25,7 @@ class ConsensusResult(TypedDict):
     cost_report: dict
     skipped_providers: list[dict]
     reliability_notes: list[str]
+    optimization_report: list[dict]
 
 
 def run_consensus_research(
@@ -42,14 +48,27 @@ def run_consensus_research(
 
     web_evidence = search_web(query, max_results=5)
     kb_evidence = search_knowledge_base(query, top_k=4)
-    evidence_bundle = f"Web evidence:\n{web_evidence}\n\nKnowledge-base evidence:\n{kb_evidence}"
+    raw_evidence_bundle = f"Web evidence:\n{web_evidence}\n\nKnowledge-base evidence:\n{kb_evidence}"
+    evidence_bundle, evidence_optimization = compact_evidence(
+        raw_evidence_bundle,
+        budget_tokens=settings.consensus_evidence_token_budget,
+        stage="shared_evidence_context",
+    )
+    optimization_reports = [evidence_optimization.to_dict()]
     reliability_notes = _evidence_reliability_notes(web_evidence, kb_evidence)
 
     model_opinions = _collect_model_opinions(query, evidence_bundle, budget)
     claim_candidates = _extract_claims(model_opinions, query)
-    claim_checks = _verify_claims(query, evidence_bundle, model_opinions, claim_candidates, budget)
+    claim_checks, verifier_optimizations = _verify_claims(
+        query,
+        evidence_bundle,
+        model_opinions,
+        claim_candidates,
+        budget,
+    )
+    optimization_reports.extend(report.to_dict() for report in verifier_optimizations)
     disagreement_map = _build_disagreement_map(model_opinions, claim_checks)
-    final_answer = _synthesize_final_answer(
+    final_answer, synthesis_optimizations = _synthesize_final_answer(
         query,
         evidence_bundle,
         model_opinions,
@@ -57,6 +76,7 @@ def run_consensus_research(
         disagreement_map,
         budget,
     )
+    optimization_reports.extend(report.to_dict() for report in synthesis_optimizations)
 
     for event in budget.events:
         if not event.get("skipped"):
@@ -98,6 +118,7 @@ def run_consensus_research(
         "cost_report": budget.to_dict(),
         "skipped_providers": skipped_providers,
         "reliability_notes": reliability_notes + _workflow_reliability_notes(model_opinions),
+        "optimization_report": optimization_reports + _token_summary(optimization_reports),
     }
 
 
@@ -124,6 +145,20 @@ Return:
     providers = ["gemini", "openrouter", "groq"]
     opinions = []
     for provider in providers:
+        if _should_stop_provider_panel(opinions):
+            opinions.append(
+                {
+                    "provider": provider,
+                    "model": "not-called",
+                    "content": "",
+                    "confidence": None,
+                    "skipped": True,
+                    "reason": "Early-stopped provider panel after enough high-confidence agreement.",
+                    "estimated_cost_usd": 0.0,
+                    "tokens": 0,
+                }
+            )
+            continue
         response = call_model(
             provider,  # type: ignore[arg-type]
             messages,
@@ -183,11 +218,16 @@ def _verify_claims(
     model_opinions: list[dict],
     claims: list[str],
     budget: CostBudget,
-) -> list[dict]:
-    verifier_context = "\n\n".join(
-        f"{m['provider']} opinion:\n{m.get('content', '')[:1600]}"
-        for m in model_opinions
-        if not m.get("skipped")
+) -> tuple[list[dict], list]:
+    verifier_context, opinion_report = compact_model_opinions(
+        model_opinions,
+        per_opinion_budget_tokens=settings.consensus_opinion_token_budget,
+        stage="verifier_opinion_context",
+    )
+    verifier_evidence, evidence_report = compact_evidence(
+        evidence,
+        budget_tokens=settings.consensus_verifier_token_budget,
+        stage="verifier_evidence_context",
     )
     claims_block = "\n".join(f"{i + 1}. {claim}" for i, claim in enumerate(claims))
     prompt = f"""
@@ -195,10 +235,10 @@ Question:
 {query}
 
 Evidence:
-{evidence[:6500]}
+{verifier_evidence}
 
 Model opinions:
-{verifier_context[:5000]}
+{verifier_context}
 
 Claims to check:
 {claims_block}
@@ -246,18 +286,21 @@ Return ONLY valid JSON in this exact shape:
 
     parsed = _parse_claim_checks(response.content, claims)
     if parsed:
-        return parsed
+        return parsed, [opinion_report, evidence_report]
 
-    return [
-        {
-            "claim": claim,
-            "support": "pending",
-            "confidence": 0.0,
-            "reason": response.reason or "Verifier did not return parseable structured output.",
-            "evidence_refs": [],
-        }
-        for claim in claims
-    ]
+    return (
+        [
+            {
+                "claim": claim,
+                "support": "pending",
+                "confidence": 0.0,
+                "reason": response.reason or "Verifier did not return parseable structured output.",
+                "evidence_refs": [],
+            }
+            for claim in claims
+        ],
+        [opinion_report, evidence_report],
+    )
 
 
 def _parse_claim_checks(text: str, claims: list[str]) -> list[dict]:
@@ -379,11 +422,16 @@ def _synthesize_final_answer(
     claim_checks: list[dict],
     disagreement_map: list[dict],
     budget: CostBudget,
-) -> str:
-    opinions = "\n\n".join(
-        f"{m['provider']} ({m['model']}):\n{m.get('content', '')[:1800]}"
-        for m in model_opinions
-        if not m.get("skipped")
+) -> tuple[str, list]:
+    opinions, opinion_report = compact_model_opinions(
+        model_opinions,
+        per_opinion_budget_tokens=settings.consensus_opinion_token_budget,
+        stage="synthesis_opinion_context",
+    )
+    synthesis_evidence, evidence_report = compact_evidence(
+        evidence,
+        budget_tokens=settings.consensus_synthesis_token_budget,
+        stage="synthesis_evidence_context",
     )
     checks = "\n".join(
         f"- {c['claim']} | support={c.get('support')} | confidence={c.get('confidence')} | {c.get('reason')}"
@@ -398,10 +446,10 @@ Question:
 {query}
 
 Evidence:
-{evidence[:5000]}
+{synthesis_evidence}
 
 Model opinions:
-{opinions[:6000]}
+{opinions}
 
 Claim verification:
 {checks}
@@ -447,8 +495,8 @@ Write the final answer in Markdown. Include:
             "## Deep Consensus could not run yet\n\n"
             "Add at least one Gemini, OpenRouter, or Groq API key to enable final synthesis. "
             "The workflow still prepared the evidence graph and cost plan, but no model was available within the configured budget."
-        )
-    return response.content
+        ), [opinion_report, evidence_report]
+    return response.content, [opinion_report, evidence_report]
 
 
 def _derive_sub_questions(query: str, model_opinions: list[dict]) -> list[str]:
@@ -487,6 +535,59 @@ def _confidence_from_text(text: str) -> float | None:
     if not match:
         return None
     return float(match.group(1))
+
+
+def _should_stop_provider_panel(opinions: list[dict]) -> bool:
+    available = [opinion for opinion in opinions if not opinion.get("skipped")]
+    if len(available) < settings.consensus_min_providers:
+        return False
+
+    strong = [
+        opinion
+        for opinion in available
+        if (opinion.get("confidence") or 0.0) >= settings.consensus_early_stop_confidence
+    ]
+    if len(strong) < settings.consensus_min_providers:
+        return False
+
+    return _rough_opinion_agreement(strong)
+
+
+def _rough_opinion_agreement(opinions: list[dict]) -> bool:
+    keyword_sets = []
+    for opinion in opinions:
+        content = str(opinion.get("content", "")).lower()
+        words = {
+            word
+            for word in re.findall(r"[a-z][a-z0-9-]{4,}", content)
+            if word not in {"there", "their", "about", "which", "would", "could", "should", "because", "confidence"}
+        }
+        keyword_sets.append(set(list(words)[:80]))
+
+    if len(keyword_sets) < 2:
+        return False
+    first, second = keyword_sets[0], keyword_sets[1]
+    if not first or not second:
+        return False
+    overlap = len(first & second) / max(1, min(len(first), len(second)))
+    return overlap >= 0.35
+
+
+def _token_summary(reports: list[dict]) -> list[dict]:
+    original = sum(int(report.get("original_tokens", 0)) for report in reports)
+    final = sum(int(report.get("final_tokens", 0)) for report in reports)
+    return [
+        {
+            "stage": "total_prompt_optimization",
+            "original_tokens": original,
+            "final_tokens": final,
+            "budget_tokens": sum(int(report.get("budget_tokens", 0)) for report in reports),
+            "saved_tokens": max(0, original - final),
+            "lines_kept": sum(int(report.get("lines_kept", 0)) for report in reports),
+            "lines_dropped": sum(int(report.get("lines_dropped", 0)) for report in reports),
+            "notes": ["Aggregate approximate token savings across optimized prompt contexts."],
+        }
+    ]
 
 
 def _evidence_reliability_notes(web_evidence: str, kb_evidence: str) -> list[str]:
