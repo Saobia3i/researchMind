@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from app.agents.react import run_react_agent
 from app.agents.team import compiled_graph
+from app.agents.consensus import run_consensus_research
 from app.memory.session_store import session_store
 from app.core.token_tracker import token_tracker
 
@@ -113,6 +114,37 @@ class TeamResearchResponse(BaseModel):
     steps: list[str]
 
 
+class ConsensusResearchRequest(BaseModel):
+    query: str = Field(
+        ...,
+        min_length=1,
+        description="The complex research query for multi-model consensus research.",
+    )
+    session_id: str | None = Field(
+        None,
+        description="Optional session ID to save this research run to memory.",
+    )
+    budget_usd: float | None = Field(
+        None,
+        ge=0,
+        description="Optional cost budget for this run. Uses DEFAULT_BUDGET_USD when omitted.",
+    )
+
+
+class ConsensusResearchResponse(BaseModel):
+    query: str
+    mode: str
+    session_id: str | None
+    final_answer: str
+    model_opinions: list[dict]
+    claim_checks: list[dict]
+    disagreement_map: list[dict]
+    evidence_graph: dict
+    cost_report: dict
+    skipped_providers: list[dict]
+    reliability_notes: list[str]
+
+
 @router.post("/agent/team_research", response_model=TeamResearchResponse)
 def team_research(request: TeamResearchRequest):
     """
@@ -158,4 +190,48 @@ def team_research(request: TeamResearchRequest):
         research_notes=result["research_notes"],
         final_report=result["final_report"],
         steps=result["steps"],
+    )
+
+
+@router.post("/agent/consensus_research", response_model=ConsensusResearchResponse)
+def consensus_research(request: ConsensusResearchRequest):
+    """
+    Runs the cost-aware multi-model workflow:
+    evidence retrieval -> model opinions -> claim verification -> disagreement map -> final synthesis.
+    """
+    if request.session_id and not session_store.exists(request.session_id):
+        session_store.create_session(request.session_id)
+
+    try:
+        result = run_consensus_research(
+            query=request.query,
+            session_id=request.session_id,
+            budget_usd=request.budget_usd,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Consensus research execution failed: {str(e)}",
+        )
+
+    if request.session_id:
+        session_store.append_message(request.session_id, "user", request.query)
+        session_store.append_message(
+            request.session_id,
+            "assistant",
+            f"[Deep Consensus Research]\n\n{result['final_answer']}",
+        )
+
+    return ConsensusResearchResponse(
+        query=result["query"],
+        mode=result["mode"],
+        session_id=request.session_id,
+        final_answer=result["final_answer"],
+        model_opinions=result["model_opinions"],
+        claim_checks=result["claim_checks"],
+        disagreement_map=result["disagreement_map"],
+        evidence_graph=result["evidence_graph"],
+        cost_report=result["cost_report"],
+        skipped_providers=result["skipped_providers"],
+        reliability_notes=result["reliability_notes"],
     )

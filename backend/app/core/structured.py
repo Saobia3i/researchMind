@@ -2,7 +2,7 @@ import json
 from groq import Groq
 from app.core.config import settings
 
-client = Groq(api_key=settings.groq_api_key)
+client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
 
 
 def call_llm_structured(
@@ -10,6 +10,9 @@ def call_llm_structured(
     system: str,
     output_schema: dict,
 ) -> dict:
+    if client is None:
+        raise RuntimeError("GROQ_API_KEY is not configured.")
+
     schema_instruction = f"""
 You MUST respond with ONLY valid JSON that matches this schema exactly:
 {json.dumps(output_schema, indent=2)}

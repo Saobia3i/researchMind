@@ -1,6 +1,6 @@
 "use client";
 
-import type { ResearchResponse, AgentResponse, TeamResearchResponse } from "@/lib/api";
+import type { ResearchResponse, AgentResponse, TeamResearchResponse, ConsensusResearchResponse } from "@/lib/api";
 
 /* ── Inline markdown renderer (no external deps) ── */
 function renderMd(text: string) {
@@ -143,9 +143,133 @@ function TeamCard({ d }: { d: TeamResearchResponse }) {
 }
 
 /* ── Main export ── */
+function ConsensusCard({ d }: { d: ConsensusResearchResponse }) {
+  const spentPct = d.cost_report.limit_usd > 0
+    ? Math.min(100, (d.cost_report.spent_usd / d.cost_report.limit_usd) * 100)
+    : 0;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }} className="fade-in">
+      <div className="gradient-border">
+        <div className="glass" style={{ borderRadius:16, padding:"20px 22px", display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:10, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              <span className="badge badge-green">Deep Consensus</span>
+              <span className="badge badge-cyan">{d.model_opinions.filter((m) => !m.skipped).length} Models Ran</span>
+              <span className="badge badge-amber">${d.cost_report.spent_usd.toFixed(4)} Spent</span>
+            </div>
+            <span style={{ fontSize:11, color:"var(--text-muted)" }}>Budget ${d.cost_report.limit_usd.toFixed(2)}</span>
+          </div>
+          <div>
+            <SL t="Cost Guard" />
+            <div className="progress-bar">
+              <div className="progress-bar-fill" style={{ width:`${spentPct}%`, background:"#22c55e" }} />
+            </div>
+          </div>
+          {d.reliability_notes.length > 0 && (
+            <div>
+              <SL t="Reliability Notes" />
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {d.reliability_notes.map((note, i) => (
+                  <p key={i} style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6 }}>{note}</p>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="prose-dark">{renderMd(d.final_answer)}</div>
+        </div>
+      </div>
+
+      <details className="glass" style={{ overflow:"hidden", borderRadius:12 }} open>
+        <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+          Claim Verification
+        </summary>
+        <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)", display:"flex", flexDirection:"column", gap:10 }}>
+          {d.claim_checks.map((check, i) => (
+            <div key={i} style={{ padding:"10px 0", borderBottom:"1px solid rgba(99,102,241,0.1)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", gap:10, alignItems:"center" }}>
+                <span className={check.support === "strong" ? "badge badge-green" : check.support === "partial" ? "badge badge-amber" : "badge badge-pink"}>{check.support}</span>
+                <span style={{ fontSize:11, color:"var(--text-muted)" }}>{Math.round(check.confidence * 100)}%</span>
+              </div>
+              <p style={{ fontSize:13, color:"var(--text-secondary)", lineHeight:1.6, marginTop:8 }}>{check.claim}</p>
+              <p style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6, marginTop:4 }}>{check.reason}</p>
+              {"evidence_refs" in check && Array.isArray(check.evidence_refs) && check.evidence_refs.length > 0 && (
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+                  {check.evidence_refs.map((ref: string, refIndex: number) => (
+                    <span key={refIndex} className="badge badge-cyan" style={{ textTransform:"none", whiteSpace:"normal" }}>{ref}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <details className="glass" style={{ overflow:"hidden", borderRadius:12 }}>
+        <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+          Model Disagreement Map
+        </summary>
+        <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)", display:"flex", flexDirection:"column", gap:10 }}>
+          {d.disagreement_map.map((row, i) => (
+            <div key={i} style={{ padding:"10px 0", borderBottom:"1px solid rgba(99,102,241,0.1)" }}>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+                <span className={row.status === "agreement" ? "badge badge-green" : "badge badge-amber"}>{row.status}</span>
+                <span className="badge badge-purple">{row.verifier_support}</span>
+              </div>
+              <p style={{ fontSize:13, color:"var(--text-secondary)", lineHeight:1.6 }}>{row.claim}</p>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+                {Object.entries(row.stances).map(([provider, stance]) => (
+                  <span key={provider} className="badge badge-cyan" style={{ textTransform:"none" }}>{provider}: {stance}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <details className="glass" style={{ overflow:"hidden", borderRadius:12 }}>
+        <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+          Evidence Graph
+        </summary>
+        <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)" }}>
+          <SL t="Sub Questions" />
+          {d.evidence_graph.sub_questions.map((q, i) => (
+            <p key={i} style={{ fontSize:13, color:"var(--text-secondary)", lineHeight:1.7 }}>{i + 1}. {q}</p>
+          ))}
+          {d.evidence_graph.evidence_sources.length > 0 && (
+            <div style={{ marginTop:12 }}>
+              <SL t="Sources" />
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {d.evidence_graph.evidence_sources.map((source, i) => (
+                  <a key={i} href={source.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:"#60a5fa", overflowWrap:"anywhere" }}>{source.url}</a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </details>
+
+      {d.skipped_providers.length > 0 && (
+        <details className="glass" style={{ overflow:"hidden", borderRadius:12 }}>
+          <summary style={{ padding:"11px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"var(--text-secondary)", listStyle:"none" }}>
+            Skipped Providers
+          </summary>
+          <div style={{ padding:"0 16px 14px", borderTop:"1px solid rgba(99,102,241,0.12)", display:"flex", flexDirection:"column", gap:8 }}>
+            {d.skipped_providers.map((item, i) => (
+              <p key={i} style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.6 }}>
+                <strong style={{ color:"var(--text-secondary)" }}>{item.provider}</strong> at {item.stage}: {item.reason}
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   mode: string;
-  data: ResearchResponse | AgentResponse | TeamResearchResponse | null;
+  data: ResearchResponse | AgentResponse | TeamResearchResponse | ConsensusResearchResponse | null;
   error: string | null;
 }
 
@@ -166,5 +290,6 @@ export default function ResultCard({ mode, data, error }: Props) {
   if (mode === "research") return <ResearchCard d={data as ResearchResponse} />;
   if (mode === "agent")    return <AgentCard    d={data as AgentResponse} />;
   if (mode === "team")     return <TeamCard     d={data as TeamResearchResponse} />;
+  if (mode === "consensus") return <ConsensusCard d={data as ConsensusResearchResponse} />;
   return null;
 }

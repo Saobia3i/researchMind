@@ -6,6 +6,7 @@ const MODES = [
   { id: "research", label: "Quick Research", icon: "🔍", desc: "Structured LLM" },
   { id: "agent",    label: "ReAct Agent",    icon: "🤖", desc: "Tool reasoning" },
   { id: "team",     label: "Team Research",  icon: "🧠", desc: "Multi-agent" },
+  { id: "consensus", label: "Deep Consensus", icon: "AI", desc: "Debate + verify" },
 ];
 
 interface Props {

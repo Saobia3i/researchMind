@@ -29,14 +29,24 @@ class UsageRecord:
     total_tokens: int = 0
     estimated_cost_usd: float = 0.0
     call_count: int = 0
+    provider_costs: dict[str, float] = field(default_factory=dict)
     last_updated: float = field(default_factory=time.time)
 
-    def add(self, prompt: int, completion: int) -> None:
+    def add(
+        self,
+        prompt: int,
+        completion: int,
+        *,
+        estimated_cost_usd: float | None = None,
+        provider: str = "groq",
+    ) -> None:
         self.prompt_tokens += prompt
         self.completion_tokens += completion
         self.total_tokens += prompt + completion
-        self.estimated_cost_usd += _calc_cost(prompt, completion)
+        call_cost = _calc_cost(prompt, completion) if estimated_cost_usd is None else estimated_cost_usd
+        self.estimated_cost_usd += call_cost
         self.call_count += 1
+        self.provider_costs[provider] = self.provider_costs.get(provider, 0.0) + call_cost
         self.last_updated = time.time()
 
     def to_dict(self) -> dict:
@@ -46,6 +56,10 @@ class UsageRecord:
             "total_tokens": self.total_tokens,
             "estimated_cost_usd": round(self.estimated_cost_usd, 6),
             "call_count": self.call_count,
+            "provider_costs": {
+                provider: round(cost, 6)
+                for provider, cost in self.provider_costs.items()
+            },
             "last_updated": self.last_updated,
         }
 
@@ -76,6 +90,8 @@ class TokenTracker:
         session_id: str | None,
         prompt_tokens: int,
         completion_tokens: int,
+        estimated_cost_usd: float | None = None,
+        provider: str = "groq",
     ) -> None:
         """
         Records token usage for an LLM call.
@@ -88,13 +104,23 @@ class TokenTracker:
         """
         with self._lock:
             # Update global stats
-            self._global.add(prompt_tokens, completion_tokens)
+            self._global.add(
+                prompt_tokens,
+                completion_tokens,
+                estimated_cost_usd=estimated_cost_usd,
+                provider=provider,
+            )
 
             # Update per-session stats
             if session_id:
                 if session_id not in self._sessions:
                     self._sessions[session_id] = UsageRecord()
-                self._sessions[session_id].add(prompt_tokens, completion_tokens)
+                self._sessions[session_id].add(
+                    prompt_tokens,
+                    completion_tokens,
+                    estimated_cost_usd=estimated_cost_usd,
+                    provider=provider,
+                )
 
     def get_session_stats(self, session_id: str) -> dict:
         """Returns usage stats for a specific session."""

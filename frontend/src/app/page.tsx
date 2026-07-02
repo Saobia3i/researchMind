@@ -6,9 +6,9 @@ import ResultCard from "@/components/ResultCard";
 import AgentTrace from "@/components/AgentTrace";
 import SessionSidebar from "@/components/SessionSidebar";
 import { api } from "@/lib/api";
-import type { ResearchResponse, AgentResponse, TeamResearchResponse, AgentStep } from "@/lib/api";
+import type { ResearchResponse, AgentResponse, TeamResearchResponse, ConsensusResearchResponse, AgentStep } from "@/lib/api";
 
-type AnyResult = ResearchResponse | AgentResponse | TeamResearchResponse;
+type AnyResult = ResearchResponse | AgentResponse | TeamResearchResponse | ConsensusResearchResponse;
 
 interface HistoryItem {
   id: number;
@@ -43,8 +43,10 @@ export default function Home() {
         const res = await api.agentChat(query, sessionId ?? undefined);
         agentSteps = res.steps;
         result = res;
-      } else {
+      } else if (mode === "team") {
         result = await api.teamResearch(query, sessionId ?? undefined);
+      } else {
+        result = await api.consensusResearch(query, sessionId ?? undefined);
       }
 
       setHistory((prev) => prev.map((item) => item.id === id ? { ...item, result, agentSteps } : item));
@@ -151,6 +153,7 @@ export default function Home() {
               { label: "LangGraph",     color: "#22d3ee" },
               { label: "Pinecone RAG",  color: "#f472b6" },
               { label: "ReAct Agent",   color: "#fbbf24" },
+              { label: "Gemini + Groq",  color: "#4ade80" },
             ].map((p) => (
               <span key={p.label} style={{
                 padding: "3px 10px", borderRadius: 999,
@@ -208,13 +211,15 @@ export default function Home() {
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
                       {item.mode === "team"
-                        ? "Running Planner → Researcher → Writer…"
+                        ? "Running Planner to Researcher to Writer..."
                         : item.mode === "agent"
-                        ? "Running ReAct reasoning loop…"
-                        : "Analyzing with LLaMA 3.3 70B…"}
+                        ? "Running ReAct reasoning loop..."
+                        : item.mode === "consensus"
+                        ? "Running multi-model debate, verification, and cost control..."
+                        : "Analyzing with LLaMA 3.3 70B..."}
                     </p>
                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
-                      {item.mode === "team" ? "Usually takes 20–40s" : "Usually takes 5–15s"}
+                      {item.mode === "team" || item.mode === "consensus" ? "Usually takes 20-60s" : "Usually takes 5-15s"}
                     </p>
                   </div>
                 </div>

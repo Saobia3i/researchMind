@@ -57,6 +57,58 @@ export interface TeamResearchResponse {
   steps: string[];
 }
 
+export interface ConsensusResearchResponse {
+  query: string;
+  mode: "deep_consensus";
+  session_id: string | null;
+  final_answer: string;
+  model_opinions: Array<{
+    provider: string;
+    model: string;
+    content: string;
+    confidence: number | null;
+    skipped: boolean;
+    reason: string | null;
+    estimated_cost_usd: number;
+    tokens: number;
+  }>;
+  claim_checks: Array<{
+    claim: string;
+    support: string;
+    confidence: number;
+    reason: string;
+    evidence_refs?: string[];
+  }>;
+  disagreement_map: Array<{
+    claim: string;
+    stances: Record<string, string>;
+    verifier_support: string;
+    confidence: number;
+    status: string;
+  }>;
+  evidence_graph: {
+    question: string;
+    sub_questions: string[];
+    evidence_sources: Array<{ url: string }>;
+    claims: string[];
+    model_opinion_count: number;
+    verified_claim_count: number;
+  };
+  cost_report: {
+    limit_usd: number;
+    spent_usd: number;
+    remaining_usd: number;
+    events: Array<Record<string, unknown>>;
+  };
+  reliability_notes: string[];
+  skipped_providers: Array<{
+    provider: string;
+    model: string;
+    stage: string;
+    reason: string;
+  }>;
+}
+
 export interface SessionHistory {
   session_id: string;
   messages: Array<{ role: string; content: string; ts: number }>;
@@ -141,6 +193,16 @@ export const api = {
     apiFetch<TeamResearchResponse>("/api/v1/agent/team_research", {
       method: "POST",
       body: JSON.stringify({ query, session_id: sessionId ?? null }),
+    }),
+
+  consensusResearch: (query: string, sessionId?: string, budgetUsd?: number) =>
+    apiFetch<ConsensusResearchResponse>("/api/v1/agent/consensus_research", {
+      method: "POST",
+      body: JSON.stringify({
+        query,
+        session_id: sessionId ?? null,
+        budget_usd: budgetUsd ?? null,
+      }),
     }),
 
   // RAG
